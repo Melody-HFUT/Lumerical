@@ -1,0 +1,194 @@
+switchtolayout;
+deleteall;
+
+#引入材料库
+importmaterialdb("E:\Lumerical\material_data.mdf");
+
+#模型参数
+R=50e-6;              #罗兰圆半径
+thickness_SiN=0.3e-6; #氮化硅层厚度
+theta=30;             #闪耀光栅倾斜角
+phi=10;               #入射角（入射角与反射角相等）
+period=0.8e-6;        #闪耀光栅周期
+N=30;                 #光栅周期数，总数应为2*N+1
+x_span=500e-6;        #基板长宽
+y_span=500e-6;
+
+#注意：建模辅助模块只用于建模，使用时需要注释掉
+#切点位于原点处，罗兰圆圆心位于x轴负半轴
+#addring; #绘制罗兰圆
+#set('name','rowland_circle');
+#set('material','silicon nitride');
+#set('x',-R); set('y',0);
+#set('z min',0); set('z max',thickness_SiN);
+#set('inner radius',R); set('outer radius',R+0.1e-6);
+#set('render type','wireframe'); set('detail',1);
+#addring; #绘制与罗兰圆相切的大圆
+#set('name','rowland_circle2');
+#set('material','silicon nitride');
+#set('x',-2*R); set('y',0);
+#set('z min',0); set('z max',thickness_SiN);
+#set('inner radius',2*R); set('outer radius',2*R+0.1e-6);
+#set('render type','wireframe'); set('detail',1);
+#初始椭圆（过切点）参数计算
+rho_input=2*R*cos((theta+phi)*pi/180);       #入射点到切点的距离
+x_input=-rho_input*cos((theta+phi)*pi/180);  #入射点坐标
+y_input=rho_input*sin((theta+phi)*pi/180);
+rho_output=2*R*cos((theta-phi)*pi/180);      #出射点到切点的距离
+x_output=-rho_output*cos((theta-phi)*pi/180);#出射点坐标
+y_output=rho_output*sin((theta-phi)*pi/180);
+a=(rho_input+rho_output)/2;                  #椭圆长轴a
+c_square=((x_output-x_input)^2+(y_output-y_input)^2)/4; #椭圆半焦距平方c^2
+b=sqrt(a^2-c_square);                        #椭圆短轴b
+#addring; #绘制入射点
+#set('name','input');
+#set('material','silicon nitride');
+#set('x',x_input); set('y',y_input);
+#set('z min',0); set('z max',thickness_SiN);
+#set('inner radius',0); set('outer radius',0.1e-6);
+#set('render type','wireframe'); set('detail',1);
+#addring; #绘制出射点
+#set('name','output');
+#set('material','silicon nitride');
+#set('x',x_output); set('y',y_output);
+#set('z min',0); set('z max',thickness_SiN);
+#set('inner radius',0); set('outer radius',0.1e-6);
+#set('render type','wireframe'); set('detail',1);
+
+#注意：以下模块属于光栅模块
+#光栅模块分为三部分建模：初始椭圆、初始椭圆上周期椭圆和下周期椭圆
+#绘制初始椭圆
+addring;
+set('name','ellipse'); set('material','SiO2 (Glass) - Palik');
+set('x',(x_input+x_output)/2); set('y',(y_input+y_output)/2);
+set('z min',0); set('z max',thickness_SiN);
+set('make ellipsoid',1);
+set('inner radius',a); set('outer radius',a+0.1e-6);
+set('inner radius 2',b); set('outer radius 2',b+0.1e-6); #这里需要修改Bragg厚度
+gamma=atan((y_input-y_output)/(x_input-x_output))*180/pi;
+set('first axis','z'); set('rotation 1',gamma);
+set('render type','wireframe'); 
+set('detail',1);
+alpha=atan(-(y_input+y_output)/(x_input+x_output))*180/pi;
+beta=alpha+gamma;
+set('theta start',-beta); set('theta stop',-beta+3); #这里需要修改光栅长度
+set("override mesh order from material database",1);
+set("mesh order",2);
+#绘制上周期椭圆
+for(i=1:N){
+	addring;
+	set('name','ellipse'); set('material','SiO2 (Glass) - Palik');
+	set('x',(x_input+x_output)/2); set('y',(y_input+y_output)/2);
+	set('z min',0); set('z max',thickness_SiN);
+	set('make ellipsoid',1);
+	#椭圆的长轴与短轴参数计算
+	y=period*i; x=sqrt(4*R^2-y^2)-2*R; #计算光栅与大圆的交点坐标
+	alpha=atan(-((y_input+y_output)/2-y)/((x_input+x_output)/2-x))*180/pi;
+	beta=alpha+gamma; #椭圆绕z轴旋转角度
+	l1=sqrt((x_input-x)^2+(y_input-y)^2);
+	l2=sqrt((x_output-x)^2+(y_output-y)^2);
+	a=(l1+l2)/2;          #椭圆长轴a
+	b=sqrt(a^2-c_square); #椭圆短轴b
+	set('inner radius',a); set('outer radius',a+0.1e-6);
+	set('inner radius 2',b); set('outer radius 2',b+0.1e-6);
+	set('first axis','z'); set('rotation 1',gamma);
+	set('render type','wireframe'); 
+	set('detail',1);
+	set('theta start',-beta); set('theta stop',-beta+3);
+	set("override mesh order from material database",1);
+	set("mesh order",2);
+}
+#绘制下周期椭圆，同上，只需使交点y坐标取负
+for(i=1:N){
+	addring;
+	set('name','ellipse'); set('material','SiO2 (Glass) - Palik');
+	set('x',(x_input+x_output)/2); set('y',(y_input+y_output)/2);
+	set('z min',0); set('z max',thickness_SiN);
+	set('make ellipsoid',1);
+	y=-period*i; x=sqrt(4*R^2-y^2)-2*R; 
+	alpha=atan(-((y_input+y_output)/2-y)/((x_input+x_output)/2-x))*180/pi;
+	beta=alpha+gamma; 
+	l1=sqrt((x_input-x)^2+(y_input-y)^2);
+	l2=sqrt((x_output-x)^2+(y_output-y)^2);
+	a=(l1+l2)/2; 
+	b=sqrt(a^2-c_square);
+	set('inner radius',a); set('outer radius',a+0.1e-6);
+	set('inner radius 2',b); set('outer radius 2',b+0.1e-6);
+	set('first axis','z'); set('rotation 1',gamma);
+	set('render type','wireframe'); 
+	set('detail',1);
+	set('theta start',-beta); set('theta stop',-beta+3);
+	set("override mesh order from material database",1);
+	set("mesh order",2);
+}
+
+#添加BOX层
+addrect;
+set('name','BOX'); set('material','SiO2 (Glass) - Palik');
+set('x',0); set("x span",x_span);
+set("y",0); set("y span",y_span);
+set('z max',0); set('z min',-2e-6);
+set("alpha", 0.5);
+#添加Si衬底
+#addrect;
+#set('name','substrate'); set('material','Si (Silicon) - Palik');
+#set('x',0); set("x span",x_span);
+#set("y",0); set("y span",y_span);
+#set('z max',-2e-6); set('z min',-4e-6);
+#set("alpha", 0.5);
+#添加SiN层
+#addrect;
+#set('name','SiN'); set('material','silicon nitride');
+#set('x',0); set("x span",x_span);
+#set("y",0); set("y span",y_span);
+#set('z max',thickness_SiN); set('z min',0);
+#set("override mesh order from material database",1);
+#set("mesh order",3);
+#添加SiO2覆层
+addrect;
+set('name','cladding'); set('material','SiO2 (Glass) - Palik');
+set('x',0); set("x span",x_span);
+set("y",0); set("y span",y_span);
+set('z max',2e-6); set('z min',0);
+set("override mesh order from material database",1);
+set("mesh order",4);
+set("alpha", 0.3);
+
+#绘制SiN自由传播区
+addcircle;
+set('name','FPR'); set('material','silicon nitride');
+set('x',-R); set("y",0);
+set('z min',0); set('z max',thickness_SiN);
+set('radius',R);
+set('detail',1);
+set("override mesh order from material database",1);
+set("mesh order",3);
+
+#绘制入射波导
+addrect;
+set('name','input_waveguide'); set('material','silicon nitride');
+set('x',x_input); set('x span',20e-6);
+set('y',y_input); set('y span',2e-6);
+set('z min',0); set('z max',thickness_SiN);
+phi=atan(y_input/x_input)*180/pi;
+set('first axis','z'); set('rotation 1',phi);
+set("override mesh order from material database",1);
+set("mesh order",3);
+#绘制出射波导阵列
+addrect;
+set('name','output_waveguide'); set('material','silicon nitride');
+set('x',x_output); set('x span',20e-6);
+set('y',y_output); set('y span',2e-6);
+set('z min',0); set('z max',thickness_SiN);
+phi=atan(y_output/x_output)*180/pi;
+set('first axis','z'); set('rotation 1',phi);
+set("override mesh order from material database",1);
+set("mesh order",3);
+
+addrect;
+set('name','SiN'); set('material','silicon nitride');
+set('x min',-R); set("x max",R);
+set("y",0); set("y span",R*2);
+set('z max',thickness_SiN); set('z min',0);
+set("override mesh order from material database",1);
+set("mesh order",3);
